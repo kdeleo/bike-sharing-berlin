@@ -44,10 +44,10 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | EDA (`notebooks/01_eda.ipynb`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
-| Model training (`notebooks/03_training.ipynb`) | In progress |
+| Model training (`notebooks/03_training.ipynb`) | Done — LightGBM + Optuna + MLflow |
+| Streamlit dashboard (`streamlit_app.py`) | In progress |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
-| Streamlit dashboard | Planned |
 | Airflow DAGs | Planned |
 | Docker / cloud deployment | Planned |
 
@@ -72,6 +72,12 @@ Station snapshots are sourced from [CityBikes](https://data.citybik.es/); weathe
 ```bash
 # Python 3.10+ recommended
 pip install -r requirements.txt
+```
+
+**macOS only** — LightGBM requires OpenMP, which is not bundled with macOS. Install it before running the notebook or the training script:
+
+```bash
+brew install libomp
 ```
 
 ## Usage
@@ -105,7 +111,20 @@ python3 -m src.features.build_features
 ```bash
 jupyter lab notebooks/01_eda.ipynb              # EDA
 jupyter lab notebooks/02_feature_engineering.ipynb
-jupyter lab notebooks/03_training.ipynb
+jupyter lab notebooks/03_training.ipynb         # LightGBM + Optuna + MLflow
+```
+
+**Launch the Streamlit dashboard:**
+
+```bash
+streamlit run streamlit_app.py
+```
+
+**Open the MLflow experiment dashboard:**
+
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+# then open http://localhost:5000
 ```
 
 **Run tests:**
@@ -117,15 +136,16 @@ pytest --cov=src   # with coverage report
 
 ## Feature engineering
 
-Target variable: `rentals_tomorrow` (next-day demand per district).
+Target variable: `relative_demand_tomorrow` = rentals / active\_stations (next-day demand per active station per district). Using relative demand normalises for the Nextbike network contraction over 2025–2026 and makes all districts comparable on the same scale.
 
 | Group | Features |
 |---|---|
-| Temporal | day-of-week, month, is\_weekend, is\_holiday (Berlin state holidays) |
-| Lag | rentals 1, 2, 7, 14 days ago |
-| Rolling | 3/7/14-day rolling mean and std of lagged demand |
+| Temporal | day-of-week, month, is\_weekend, is\_holiday (Berlin state holidays), season |
+| Lag | relative demand 1, 2, 7, 14 days ago (per district) |
+| Rolling | 3/7/14-day rolling mean and std of lagged relative demand (per district) |
 | Network | active station count per district |
 | Weather | temperature, apparent temperature, precipitation, rain, snowfall, wind speed, cloud cover, humidity |
+| District | categorical — 9 of 12 Bezirke (3 peripheral districts excluded: Marzahn-Hellersdorf, Spandau, Reinickendorf) |
 
 ## Tech stack
 
