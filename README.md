@@ -43,8 +43,8 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | Data collection | Done — Jan 2025 – Apr 2026 |
 | EDA (`notebooks/01_eda.ipynb`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
-| Feature engineering (`src/features/`) | In progress |
-| Model training (`src/models/`) | Planned |
+| Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
+| Model training (`notebooks/03_training.ipynb`) | In progress |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
 | Streamlit dashboard | Planned |
@@ -55,6 +55,8 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 
 Raw data lives in `bike_data_berlin/` as monthly parquet files. Each file covers one system and one month; columns are `tag`, `nuid`, `name`, `latitude`, `longitude`, `bikes`, `free`, `timestamp`.
 
+Station snapshots are sourced from [CityBikes](https://data.citybik.es/); weather from [Open-Meteo](https://open-meteo.com/) (free archive API, no key required).
+
 - **Nextbike Berlin** — ~2,000–4,600 stations, snapshots every ~57 min (median)
 - **Callabike Berlin** — ~470–630 stations, snapshots every ~6 h (median)
 - Coverage: Jan 2025 – Apr 2026 (486 days)
@@ -62,6 +64,8 @@ Raw data lives in `bike_data_berlin/` as monthly parquet files. Each file covers
 **Demand estimation** — Since the data is snapshots of bikes available (not trip records), rentals are estimated as the sum of decreases in `bikes` count within each station × calendar day: `Σ max(0, bikes_prev - bikes_curr)`. This captures real rentals while discarding bike returns and rebalancing top-ups.
 
 **District assignment** — Stations are spatially joined to Berlin's 12 Bezirke (boundaries in `configs/berlin_bezirke.geojson`). 99.8% of stations fall within a district polygon.
+
+![Bike stations by Berlin district](reports/map_districts.png)
 
 ## Setup
 
@@ -90,10 +94,18 @@ Outputs written to:
 - `data/processed/weather_daily.parquet` — daily Berlin weather (cached; re-running skips the API call)
 - `reports/*.png` — EDA visualisations
 
-**Open the EDA notebook:**
+**Run feature engineering** (reads processed data, writes `data/features/features.parquet`):
 
 ```bash
-jupyter lab notebooks/01_eda.ipynb
+python3 -m src.features.build_features
+```
+
+**Open the notebooks:**
+
+```bash
+jupyter lab notebooks/01_eda.ipynb              # EDA
+jupyter lab notebooks/02_feature_engineering.ipynb
+jupyter lab notebooks/03_training.ipynb
 ```
 
 **Run tests:**
