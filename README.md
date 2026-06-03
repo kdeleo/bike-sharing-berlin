@@ -40,11 +40,11 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 
 | Stage | Status |
 |---|---|
-| Data collection | Done — Jan 2025 – Apr 2026 |
+| Data collection | Done (Using Jan 2025 – Apr 2026) |
 | EDA (`notebooks/01_eda.ipynb`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
-| Model training (`notebooks/03_training.ipynb`) | Done — LightGBM + Optuna + MLflow |
+| Model training (`notebooks/03_training.ipynb`) | In progress  (LightGBM + Optuna + MLflow) |
 | Streamlit dashboard (`streamlit_app.py`) | In progress |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
