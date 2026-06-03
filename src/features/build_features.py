@@ -92,10 +92,10 @@ def _add_temporal(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Step 3 – Lag and rolling features (per district)
+# Step 3 – Lag and rolling features (per district, on relative demand)
 # ---------------------------------------------------------------------------
 def _add_lag_rolling(df: pd.DataFrame) -> pd.DataFrame:
-    grp = df.groupby("district")["rentals"]
+    grp = df.groupby("district", observed=True)["relative_demand"]
 
     for lag in LAG_DAYS:
         df[f"lag_{lag}d"] = grp.shift(lag)
@@ -125,18 +125,23 @@ def build_features(demand: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame:
     df = demand.sort_values(["district", "date"]).copy()
     df["district"] = pd.Categorical(df["district"])
 
+    # Relative demand: normalises for network size changes across time and districts
+    df["relative_demand"] = df["rentals"] / df["active_stations"]
+
     df = _add_temporal(df)
     df = _add_lag_rolling(df)
 
     # Today's weather predicts tomorrow's demand
     df = df.merge(weather, on="date", how="left")
 
-    # Target
+    # Targets
     df = df.sort_values(["district", "date"])
-    df["rentals_tomorrow"] = df.groupby("district")["rentals"].shift(-1)
+    grp = df.groupby("district", observed=True)
+    df["relative_demand_tomorrow"] = grp["relative_demand"].shift(-1)
+    df["rentals_tomorrow"] = grp["rentals"].shift(-1)  # absolute reference for evaluation
 
     n_total = len(df)
-    n_valid = df.dropna(subset=FEATURE_COLS + ["rentals_tomorrow"]).shape[0]
+    n_valid = df.dropna(subset=FEATURE_COLS + ["relative_demand_tomorrow"]).shape[0]
     log.info(
         "Feature matrix: %s rows × %s columns | valid modelling rows: %s",
         n_total, len(df.columns), n_valid,
@@ -156,8 +161,9 @@ def main() -> None:
 
     features = build_features(demand, weather)
 
-    out_cols = ["date", *FEATURE_COLS, "season", "rentals_tomorrow"]
-    out_cols = list(dict.fromkeys(out_cols))  # deduplicate (district appears in both)
+    out_cols = ["date", "district", "rentals", "relative_demand",
+                *FEATURE_COLS, "season", "relative_demand_tomorrow", "rentals_tomorrow"]
+    out_cols = list(dict.fromkeys(out_cols))
     out = features[out_cols].reset_index(drop=True)
 
     out_path = FEATURES_DIR / "features.parquet"
