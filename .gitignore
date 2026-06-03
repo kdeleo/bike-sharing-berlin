@@ -1,0 +1,40 @@
+# Raw & processed data (large files — reproduce with pipeline)
+bike_data_berlin/
+data/processed/
+data/raw/
+data/features/
+
+# Model artifacts
+models/*.pkl
+models/*.joblib
+models/*.json
+models/*.txt
+mlruns/
+
+# Jupyter
+notebooks/.cache.sqlite
+.cache
+.cache.sqlite
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
