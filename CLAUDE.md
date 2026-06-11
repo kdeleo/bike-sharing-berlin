@@ -18,6 +18,9 @@ python3 -m src.data.processing.pipeline
 # Run pipeline without generating plots
 python3 -m src.data.processing.pipeline --no-plots
 
+# Fetch today's station snapshot + tomorrow's weather forecast (daily ingestion)
+python3 -m src.data.collection.fetch_live
+
 # Run feature engineering (reads data/processed/, writes data/features/features.parquet)
 python3 -m src.features.build_features
 
@@ -107,6 +110,7 @@ Feature groups:
 
 | Path | Status | Purpose |
 |---|---|---|
+| `src/data/collection/fetch_live.py` | Implemented | Daily live fetch: station snapshot + weather forecast |
 | `src/data/processing/pipeline.py` | Implemented | Full ETL pipeline |
 | `notebooks/02_feature_engineering.ipynb` | Implemented | Feature engineering notebook |
 | `src/features/build_features.py` | Implemented | Feature engineering script |

@@ -42,6 +42,7 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 |---|---|
 | Data collection | Done (Using Jan 2025 – Apr 2026) |
 | EDA (`notebooks/01_eda.ipynb`) | Done |
+| Live data fetch (`src/data/collection/fetch_live.py`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
 | Model training (`notebooks/03_training.ipynb`, `src/models/train.py`) | Done (LightGBM + Optuna + MLflow, R² 0.773) |
@@ -99,6 +100,16 @@ Outputs written to:
 - `data/processed/district_daily_demand.parquet` — date × district × rentals × active\_stations
 - `data/processed/weather_daily.parquet` — daily Berlin weather (cached; re-running skips the API call)
 - `reports/*.png` — EDA visualisations
+
+**Fetch live data** (today's station snapshot + tomorrow's weather forecast):
+
+```bash
+python3 -m src.data.collection.fetch_live
+```
+
+Outputs:
+- `bike_data_berlin/live_YYYY-MM-DD.parquet` — station snapshot picked up automatically by the ETL pipeline
+- `data/processed/weather_daily.parquet` — updated with tomorrow's forecast row (used for `apparent_temperature_tomorrow`, `precipitation_tomorrow` features)
 
 **Run feature engineering** (reads processed data, writes `data/features/features.parquet`):
 
