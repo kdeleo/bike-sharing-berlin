@@ -35,16 +35,21 @@ ROLL_WINDOWS = [3, 7, 14]
 WEATHER_COLS = [
     "temperature_2m", "apparent_temperature", "precipitation",
     "rain", "snowfall", "wind_speed_10m", "cloud_cover", "relative_humidity_2m",
+    "temp_change_1d",                  # day-over-day temperature change
+    "apparent_temperature_tomorrow",   # next-day forecast proxy (actual t+1 as training stand-in)
+    "precipitation_tomorrow",          # next-day forecast proxy
 ]
 ANOMALY_PERCENTILE = 0.02  # city-wide days below this percentile are treated as outages
 
 FEATURE_COLS = [
     "district",
     "dow", "month", "is_weekend", "is_holiday",
+    "daylight_hours",          # astronomical seasonal signal (52.52°N)
     *[f"lag_{l}d" for l in LAG_DAYS],
     *[f"roll_{w}d_{s}" for w in ROLL_WINDOWS for s in ["mean", "std"]],
     "active_stations",
     *WEATHER_COLS,
+    "apparent_temp_x_weekend", # interaction: warm weekends drive extra demand
 ]
 
 
@@ -88,6 +93,16 @@ def _add_temporal(df: pd.DataFrame) -> pd.DataFrame:
          6: "summer", 7: "summer",  8: "summer",
          9: "autumn", 10: "autumn", 11: "autumn",
     })
+
+    # Daylight hours: Spencer astronomical formula for Berlin (52.52°N)
+    doy   = df["date"].dt.dayofyear
+    B     = 2 * np.pi * (doy - 1) / 365
+    decl  = (0.006918 - 0.399912 * np.cos(B) + 0.070257 * np.sin(B)
+             - 0.006758 * np.cos(2 * B) + 0.000907 * np.sin(2 * B)
+             - 0.002697 * np.cos(3 * B) + 0.001480 * np.sin(3 * B))
+    cos_ha = np.clip(-np.tan(np.deg2rad(52.52)) * np.tan(decl), -1, 1)
+    df["daylight_hours"] = 2 * np.degrees(np.arccos(cos_ha)) / 15
+
     return df
 
 
@@ -117,8 +132,15 @@ def _add_lag_rolling(df: pd.DataFrame) -> pd.DataFrame:
 def build_features(demand: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame:
     demand = demand.copy()
     demand["date"] = pd.to_datetime(demand["date"])
-    weather = weather[["date"] + WEATHER_COLS].copy()
+
+    # Compute derived weather features before slicing
+    weather = weather.copy()
     weather["date"] = pd.to_datetime(weather["date"])
+    weather = weather.sort_values("date")
+    weather["temp_change_1d"] = weather["temperature_2m"].diff()
+    weather["apparent_temperature_tomorrow"] = weather["apparent_temperature"].shift(-1)
+    weather["precipitation_tomorrow"] = weather["precipitation"].shift(-1)
+    weather = weather[["date"] + WEATHER_COLS].copy()
 
     demand = filter_anomalous_days(demand)
 
@@ -133,6 +155,9 @@ def build_features(demand: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame:
 
     # Today's weather predicts tomorrow's demand
     df = df.merge(weather, on="date", how="left")
+
+    # Interaction: warm weekends drive disproportionately more demand
+    df["apparent_temp_x_weekend"] = df["apparent_temperature"] * df["is_weekend"]
 
     # Targets
     df = df.sort_values(["district", "date"])

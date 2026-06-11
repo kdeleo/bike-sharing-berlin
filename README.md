@@ -44,7 +44,7 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | EDA (`notebooks/01_eda.ipynb`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
-| Model training (`notebooks/03_training.ipynb`) | In progress  (LightGBM + Optuna + MLflow) |
+| Model training (`notebooks/03_training.ipynb`, `src/models/train.py`) | Done (LightGBM + Optuna + MLflow, R² 0.773) |
 | Streamlit dashboard (`streamlit_app.py`) | In progress |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
@@ -106,6 +106,14 @@ Outputs written to:
 python3 -m src.features.build_features
 ```
 
+**Train the model** (Optuna HPO + MLflow, saves `models/best_model.txt`):
+
+```bash
+python3 -m src.models.train
+python3 -m src.models.train --trials 100         # more Optuna trials
+python3 -m src.models.train --split-date 2026-03-01  # custom split date
+```
+
 **Open the notebooks:**
 
 ```bash
@@ -140,11 +148,12 @@ Target variable: `relative_demand_tomorrow` = rentals / active\_stations (next-d
 
 | Group | Features |
 |---|---|
-| Temporal | day-of-week, month, is\_weekend, is\_holiday (Berlin state holidays), season |
+| Temporal | day-of-week, month, is\_weekend, is\_holiday (Berlin state holidays), season, daylight\_hours |
 | Lag | relative demand 1, 2, 7, 14 days ago (per district) |
 | Rolling | 3/7/14-day rolling mean and std of lagged relative demand (per district) |
 | Network | active station count per district |
-| Weather | temperature, apparent temperature, precipitation, rain, snowfall, wind speed, cloud cover, humidity |
+| Weather | temperature, apparent temperature, precipitation, rain, snowfall, wind speed, cloud cover, humidity, temp\_change\_1d, apparent\_temperature\_tomorrow, precipitation\_tomorrow |
+| Interaction | apparent\_temp × is\_weekend |
 | District | categorical — 9 of 12 Bezirke (3 peripheral districts excluded: Marzahn-Hellersdorf, Spandau, Reinickendorf) |
 
 ## Tech stack

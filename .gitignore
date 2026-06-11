@@ -3,6 +3,7 @@ bike_data_berlin/
 data/processed/
 data/raw/
 data/features/
+data/stations.parquet
 
 # Model artifacts
 models/*.pkl
@@ -10,6 +11,7 @@ models/*.joblib
 models/*.json
 models/*.txt
 mlruns/
+mlflow.db
 
 # Jupyter
 notebooks/.cache.sqlite

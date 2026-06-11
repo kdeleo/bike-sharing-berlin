@@ -18,6 +18,20 @@ python3 -m src.data.processing.pipeline
 # Run pipeline without generating plots
 python3 -m src.data.processing.pipeline --no-plots
 
+# Run feature engineering (reads data/processed/, writes data/features/features.parquet)
+python3 -m src.features.build_features
+
+# Train model (Optuna HPO + MLflow logging, saves models/best_model.txt)
+python3 -m src.models.train
+python3 -m src.models.train --trials 100        # more Optuna trials
+python3 -m src.models.train --split-date 2026-03-01  # custom train/test split
+
+# Open MLflow experiment dashboard (run from project root)
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+
+# Launch Streamlit dashboard (run from project root)
+streamlit run streamlit_app.py
+
 # Run pipeline with a custom data directory
 python3 -m src.data.processing.pipeline --data-dir /path/to/data
 
@@ -46,14 +60,20 @@ data/processed/
   weather_daily.parquet           # daily weather for Berlin (cached after first fetch)
         |
         v
-src/features/    (feature engineering — planned)
+src/features/build_features.py   (feature engineering — implemented)
         |
         v
-src/models/      (LightGBM + Optuna + MLflow — planned)
+data/features/features.parquet   # relative_demand_tomorrow target + all features
         |
-        ├── src/api/          (FastAPI — planned)
-        ├── src/monitoring/   (Evidently drift — planned)
-        └── Streamlit app     (visualisation — planned)
+        v
+notebooks/03_training.ipynb      (LightGBM + Optuna + MLflow — implemented)
+        |
+        v
+models/best_model.txt            # saved LightGBM booster
+        |
+        ├── streamlit_app.py      (dashboard — in progress)
+        ├── src/api/              (FastAPI — planned)
+        └── src/monitoring/       (Evidently drift — planned)
 
 Orchestration: Airflow   |   Packaging: Docker
 ```
@@ -68,25 +88,34 @@ Orchestration: Airflow   |   Packaging: Docker
 
 **Timezone** — All timestamps are converted from UTC to `Europe/Berlin` before any date-based aggregation.
 
-### Feature engineering (planned, not yet implemented)
+### Feature engineering
 
-Target: `rentals_tomorrow` per district. Five feature groups:
-- **Temporal**: dow, month, is_weekend, is_holiday (Berlin state holidays via `holidays.Germany(state="BE")`)
-- **Lag**: rentals 1/2/7/14 days ago
-- **Rolling**: 3/7/14-day rolling mean and std of lagged demand
+Target: `relative_demand_tomorrow` = rentals / active_stations per district. Using relative demand normalises for the Nextbike network contraction (4,500 → 2,000 stations over 2025–2026) and makes all districts comparable.
+
+Three peripheral districts excluded from modelling (near-zero demand, worse than baseline): Marzahn-Hellersdorf, Spandau, Reinickendorf.
+
+Feature groups:
+- **Temporal**: dow, month, is_weekend, is_holiday (Berlin state holidays via `holidays.Germany(state="BE")`), season, daylight_hours (Spencer astronomical formula, 52.52°N)
+- **Lag**: relative demand 1/2/7/14 days ago (per district)
+- **Rolling**: 3/7/14-day rolling mean and std of lagged relative demand (per district)
 - **Network**: active station count per district
-- **Weather**: temperature, apparent temperature, precipitation, rain, snowfall, wind, cloud cover, humidity
+- **Weather**: temperature, apparent temperature, precipitation, rain, snowfall, wind, cloud cover, humidity, temp_change_1d (day-over-day temperature change), apparent_temperature_tomorrow, precipitation_tomorrow (next-day forecast proxies — actual t+1 values used as training stand-in)
+- **Interaction**: apparent_temperature × is_weekend (warm weekends drive extra demand)
+- **District**: pd.Categorical — LightGBM native categorical handling
 
 ### Package layout
 
 | Path | Status | Purpose |
 |---|---|---|
 | `src/data/processing/pipeline.py` | Implemented | Full ETL pipeline |
-| `src/features/` | Stub | Feature engineering |
-| `src/models/` | Stub | LightGBM training + Optuna HPO + MLflow tracking |
+| `notebooks/02_feature_engineering.ipynb` | Implemented | Feature engineering notebook |
+| `src/features/build_features.py` | Implemented | Feature engineering script |
+| `notebooks/03_training.ipynb` | Implemented | LightGBM + Optuna HPO + MLflow |
+| `src/models/train.py` | Implemented | Training script (mirrors notebook, CLI + importable) |
+| `models/best_model.txt` | Implemented | Saved LightGBM booster (Optuna-tuned) |
+| `streamlit_app.py` | In progress | Streamlit demand forecast dashboard |
 | `src/api/` | Stub | FastAPI serving endpoint |
 | `src/monitoring/` | Stub | Evidently drift monitoring |
-| Streamlit app | Not started | Interactive demand visualisation |
 | Airflow DAGs | Not started | Scheduling daily pipeline runs |
 | Docker | Not started | Containerisation for deployment |
 

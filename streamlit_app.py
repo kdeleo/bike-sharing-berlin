@@ -7,7 +7,9 @@ Run from the project root:
 
 import lightgbm as lgb
 import numpy as np
+import json
 import pandas as pd
+import geopandas as gpd
 import plotly.graph_objects as go
 import streamlit as st
 from pathlib import Path
@@ -30,6 +32,7 @@ TARGET = "relative_demand_tomorrow"
 FEATURE_COLS = [
     "district",
     "dow", "month", "is_weekend", "is_holiday",
+    "daylight_hours",
     "lag_1d", "lag_2d", "lag_7d", "lag_14d",
     "roll_3d_mean", "roll_3d_std",
     "roll_7d_mean", "roll_7d_std",
@@ -37,8 +40,15 @@ FEATURE_COLS = [
     "active_stations",
     "temperature_2m", "apparent_temperature", "precipitation",
     "rain", "snowfall", "wind_speed_10m", "cloud_cover", "relative_humidity_2m",
+    "temp_change_1d", "apparent_temperature_tomorrow", "precipitation_tomorrow",
+    "apparent_temp_x_weekend"
 ]
 
+PALETTE = {
+    "actual":   "#4C78A8",
+    "predicted":"#E45756",
+    "baseline": "#F58518",
+}
 
 # ── Data & model (cached) ─────────────────────────────────────────────────────
 @st.cache_data
@@ -50,6 +60,17 @@ def load_data() -> pd.DataFrame:
     df["district"] = df["district"].cat.remove_unused_categories()
     return df
 
+@st.cache_data
+def load_geojson():
+    with open(ROOT / "configs" / "berlin_bezirke.geojson") as f:
+        return json.load(f)
+
+@st.cache_data
+def load_stations():
+    return pd.read_parquet(ROOT / "data" / "stations.parquet")
+
+geojson  = load_geojson()
+stations = load_stations()
 
 @st.cache_resource
 def load_model() -> lgb.Booster:
@@ -118,17 +139,25 @@ if not show_train:
 fig = go.Figure()
 fig.add_trace(go.Scatter(
     x=plot_df["date"], y=plot_df["rentals_tomorrow"],
-    name="actual", line=dict(color="#4C78A8", width=1.5), opacity=0.8,
+    name="actual", line=dict(color=PALETTE["actual"], width=1.5), opacity=0.8,
 ))
 fig.add_trace(go.Scatter(
     x=plot_df["date"], y=plot_df["pred_abs"],
-    name="predicted", line=dict(color="#E45756", width=2),
+    name="predicted", line=dict(color=PALETTE["predicted"], width=2),
 ))
 if show_train:
-    fig.add_vline(
-        x=SPLIT_DATE.timestamp() * 1000,
-        line_dash="dash", line_color="gray",
-        annotation_text="train / test", annotation_position="top right",
+    fig.add_shape(
+        type="line",
+        x0=SPLIT_DATE, x1=SPLIT_DATE,
+        y0=0, y1=1, yref="paper",
+        line=dict(dash="dash", color="gray", width=1.5),
+    )
+    fig.add_annotation(
+        x=SPLIT_DATE, y=1, yref="paper",
+        text="train / test split",
+        showarrow=False,
+        xanchor="left", yanchor="top",
+        font=dict(size=11, color="gray"),
     )
 
 d_rmse = np.sqrt(mean_squared_error(plot_df["rentals_tomorrow"], plot_df["pred_abs"]))
@@ -169,15 +198,15 @@ fig2.add_trace(go.Bar(
     x=metrics_df["District"],
     y=metrics_df["RMSE"],
     name="Model RMSE",
-    marker_color="#4C78A8",
+    marker_color=PALETTE["actual"],
 ))
 fig2.add_trace(go.Scatter(
     x=metrics_df["District"],
     y=metrics_df["Baseline RMSE"],
     name="Baseline RMSE (lag 7d)",
     mode="markers",
-    marker=dict(symbol="line-ew", size=14, color="#E45756",
-                line=dict(width=2.5, color="#E45756")),
+    marker=dict(symbol="line-ew", size=14, color=PALETTE["predicted"],
+                line=dict(width=2.5, color=PALETTE["predicted"])),
 ))
 fig2.update_layout(
     template="simple_white", height=320,
@@ -192,7 +221,60 @@ st.dataframe(
     metrics_df.style
     .format({"RMSE": "{:.1f}", "MAE": "{:.1f}", "R²": "{:.3f}",
              "Baseline RMSE": "{:.1f}", "vs baseline": "{:+.1f}"})
-    .background_gradient(subset=["R²"], cmap="RdYlGn", vmin=0, vmax=1),
+    .background_gradient(subset=["R²"], cmap="RdBu", vmin=0, vmax=1),
     width='stretch',
     hide_index=True,
 )
+
+st.divider()
+
+# ── Berlin districts map ───────────────────────────────────────────────────
+st.subheader("Bike stations & district performance")
+
+col_map, col_ctrl = st.columns([3, 1])
+
+with col_ctrl:
+    color_col = st.radio(
+        "Colour districts by",
+        ["R²", "RMSE", "MAE", "vs baseline"],
+)
+    show_stations = st.checkbox("Show bike stations", value=True)
+
+with col_map:
+    choropleth = go.Choroplethmapbox(
+        geojson=geojson,
+        locations=metrics_df["District"],
+        featureidkey="properties.name",
+        z=metrics_df[color_col],
+        colorscale="RdBu_r",
+        reversescale=color_col != "R²",
+        zmin=metrics_df[color_col].min(),
+        zmax=metrics_df[color_col].max(),
+        colorbar_title=color_col,
+        marker_line_color="white",
+        marker_line_width=1,
+        hovertemplate="<b>%{location}</b><br>" + f"{color_col}: " + "%{z:.2f}<extra></extra>",
+    )
+
+    traces = [choropleth]
+
+    if show_stations:
+        traces.append(go.Scattermapbox(
+            lat=stations["latitude"],
+            lon=stations["longitude"],
+            mode="markers",
+            marker=dict(size=4, color="black", opacity=0.4),
+            text=stations["name"],
+            hovertemplate="<b>%{text}</b><extra></extra>",
+            name="Stations",
+        ))
+
+    fig3 = go.Figure(traces)
+    fig3.update_layout(
+        height=520,
+        margin=dict(t=0, b=0, l=0, r=0),
+        mapbox_style="open-street-map",
+        mapbox_zoom=9,
+        mapbox_center={"lat": 52.52, "lon": 13.41},
+    )
+    st.plotly_chart(fig3, width='stretch')
