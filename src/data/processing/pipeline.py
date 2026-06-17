@@ -450,7 +450,7 @@ def save_plots(
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main — full run
 # ---------------------------------------------------------------------------
 def main(data_dir: Path, save_plots_flag: bool) -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -487,10 +487,97 @@ def main(data_dir: Path, save_plots_flag: bool) -> None:
     log.info("Pipeline complete.")
 
 
+# ---------------------------------------------------------------------------
+# Incremental run — append new live snapshot files only
+# ---------------------------------------------------------------------------
+def run_incremental(data_dir: Path) -> None:
+    """Append demand rows from new live_YYYY-MM-DD.parquet files.
+
+    Reads district_daily_demand.parquet to find the last processed date, then
+    processes only live snapshot files with dates strictly after that. Weather
+    is skipped — fetch_live already keeps weather_daily.parquet current.
+
+    Note: live snapshots are single daily point-in-time fetches, so each file
+    has one snapshot per station. Intra-day demand (bike count decreases between
+    consecutive snapshots) is therefore limited. Demand estimates improve as
+    more live files accumulate across consecutive days.
+    """
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    demand_path = PROCESSED_DIR / "district_daily_demand.parquet"
+
+    if not demand_path.exists():
+        raise RuntimeError(
+            "No existing district_daily_demand.parquet — run full pipeline first"
+        )
+
+    existing = pd.read_parquet(demand_path)
+    existing["date"] = pd.to_datetime(existing["date"])
+    last_date = existing["date"].max()
+    log.info("Last processed date: %s", last_date.date())
+
+    # Find live snapshot files with dates strictly after last_date
+    new_files = sorted([
+        f for f in data_dir.glob("live_*.parquet")
+        if pd.Timestamp(f.stem.removeprefix("live_")) > last_date
+    ])
+
+    if not new_files:
+        log.info(
+            "No new live snapshot files found after %s — nothing to update",
+            last_date.date(),
+        )
+        return
+
+    log.info(
+        "Processing %d new file(s): %s → %s",
+        len(new_files), new_files[0].name, new_files[-1].name,
+    )
+
+    raw_new = pd.concat([pd.read_parquet(f) for f in new_files], ignore_index=True)
+    raw_new = raw_new[raw_new["tag"].isin(SYSTEMS)].copy()
+    log.info(
+        "Loaded %s rows | %s unique stations",
+        f"{len(raw_new):,}", f"{raw_new['nuid'].nunique():,}",
+    )
+
+    demand_nb = compute_daily_demand(raw_new[raw_new["tag"] == "nextbike-berlin"])
+    demand_cb = compute_daily_demand(raw_new[raw_new["tag"] == "callabike-berlin"])
+
+    all_demand_new = pd.concat([demand_nb, demand_cb])
+    stations_joined = assign_districts(all_demand_new, BEZIRKE_PATH)
+
+    new_district_daily, _ = build_district_daily(demand_nb, demand_cb, stations_joined)
+    new_rows = new_district_daily[new_district_daily["date"] > last_date].copy()
+
+    if new_rows.empty:
+        log.info("No new district-day rows produced — skipping write")
+        return
+
+    updated = pd.concat([existing, new_rows], ignore_index=True)
+    updated = updated.sort_values(["district", "date"]).reset_index(drop=True)
+    updated.to_parquet(demand_path, index=False)
+    log.info(
+        "Appended %d rows (%s → %s) to %s",
+        len(new_rows),
+        new_rows["date"].min().date(),
+        new_rows["date"].max().date(),
+        demand_path.name,
+    )
+    log.info("Incremental ETL complete.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bike-sharing data processing pipeline")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--no-plots", action="store_true", help="Skip saving plots")
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Append new live snapshot files only (skips full reprocess and plots)",
+    )
     args = parser.parse_args()
 
-    main(data_dir=args.data_dir, save_plots_flag=not args.no_plots)
+    if args.incremental:
+        run_incremental(data_dir=args.data_dir)
+    else:
+        main(data_dir=args.data_dir, save_plots_flag=not args.no_plots)

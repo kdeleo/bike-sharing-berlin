@@ -43,7 +43,7 @@ ANOMALY_PERCENTILE = 0.02  # city-wide days below this percentile are treated as
 
 FEATURE_COLS = [
     "district",
-    "dow", "month", "is_weekend", "is_holiday",
+    "dow", "month", "is_weekend", "is_holiday", "is_pre_holiday", "is_post_holiday",
     "daylight_hours",          # astronomical seasonal signal (52.52°N)
     *[f"lag_{l}d" for l in LAG_DAYS],
     *[f"roll_{w}d_{s}" for w in ROLL_WINDOWS for s in ["mean", "std"]],
@@ -86,7 +86,9 @@ def _add_temporal(df: pd.DataFrame) -> pd.DataFrame:
     df["dow"] = df["date"].dt.dayofweek
     df["month"] = df["date"].dt.month
     df["is_weekend"] = (df["date"].dt.dayofweek >= 5).astype(int)
-    df["is_holiday"] = df["date"].dt.date.isin(berlin_holidays).astype(int)
+    df["is_holiday"]     = df["date"].dt.date.isin(berlin_holidays).astype(int)
+    df["is_pre_holiday"]  = (df["date"] + pd.Timedelta(days=1)).dt.date.isin(berlin_holidays).astype(int)
+    df["is_post_holiday"] = (df["date"] - pd.Timedelta(days=1)).dt.date.isin(berlin_holidays).astype(int)
     df["season"] = df["date"].dt.month.map({
         12: "winter", 1: "winter",  2: "winter",
          3: "spring", 4: "spring",  5: "spring",

@@ -31,7 +31,7 @@ LOW_DEMAND_DISTRICTS = ["Marzahn-Hellersdorf", "Spandau", "Reinickendorf"]
 TARGET = "relative_demand_tomorrow"
 FEATURE_COLS = [
     "district",
-    "dow", "month", "is_weekend", "is_holiday",
+    "dow", "month", "is_weekend", "is_holiday", "is_pre_holiday", "is_post_holiday",
     "daylight_hours",
     "lag_1d", "lag_2d", "lag_7d", "lag_14d",
     "roll_3d_mean", "roll_3d_std",

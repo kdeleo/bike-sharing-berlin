@@ -45,7 +45,8 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | Live data fetch (`src/data/collection/fetch_live.py`) | Done |
 | ETL pipeline (`src/data/processing/`) | Done |
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
-| Model training (`notebooks/03_training.ipynb`, `src/models/train.py`) | Done (LightGBM + Optuna + MLflow, R² 0.773) |
+| Model training (`notebooks/03_training.ipynb`, `src/models/train.py`) | Done (LightGBM + Optuna + MLflow, R² 0.768) |
+| Live prediction (`notebooks/05_predict.ipynb`, `src/models/predict.py`) | Done |
 | Streamlit dashboard (`streamlit_app.py`) | In progress |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
@@ -72,6 +73,8 @@ Station snapshots are sourced from [CityBikes](https://data.citybik.es/); weathe
 
 ```bash
 # Python 3.10+ recommended
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
@@ -93,6 +96,7 @@ Optional flags:
 
 ```bash
 --no-plots               # skip saving report images
+--incremental            # append new live snapshot files only (skips full reprocess and plots)
 --data-dir /path/to/dir  # use a different snapshot directory (default: bike_data_berlin/)
 ```
 
@@ -123,6 +127,13 @@ python3 -m src.features.build_features
 python3 -m src.models.train
 python3 -m src.models.train --trials 100         # more Optuna trials
 python3 -m src.models.train --split-date 2026-03-01  # custom split date
+```
+
+**Generate next-day predictions** (run `fetch_live` first):
+
+```bash
+python3 -m src.data.collection.fetch_live   # fetch today's snapshot + weather
+python3 -m src.models.predict               # writes data/predictions/predictions_latest.parquet
 ```
 
 **Open the notebooks:**
@@ -159,7 +170,7 @@ Target variable: `relative_demand_tomorrow` = rentals / active\_stations (next-d
 
 | Group | Features |
 |---|---|
-| Temporal | day-of-week, month, is\_weekend, is\_holiday (Berlin state holidays), season, daylight\_hours |
+| Temporal | day-of-week, month, is\_weekend, is\_holiday, is\_pre\_holiday, is\_post\_holiday (Berlin state holidays), season, daylight\_hours |
 | Lag | relative demand 1, 2, 7, 14 days ago (per district) |
 | Rolling | 3/7/14-day rolling mean and std of lagged relative demand (per district) |
 | Network | active station count per district |

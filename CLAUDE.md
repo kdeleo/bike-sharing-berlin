@@ -9,6 +9,10 @@ End-to-end ML pipeline that predicts next-day bike-sharing demand in Berlin to g
 ## Commands
 
 ```bash
+# Create and activate virtual environment (first time only)
+python3 -m venv .venv
+source .venv/bin/activate
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -17,6 +21,9 @@ python3 -m src.data.processing.pipeline
 
 # Run pipeline without generating plots
 python3 -m src.data.processing.pipeline --no-plots
+
+# Incremental ETL — append new live snapshot files only (run fetch_live first)
+python3 -m src.data.processing.pipeline --incremental
 
 # Fetch today's station snapshot + tomorrow's weather forecast (daily ingestion)
 python3 -m src.data.collection.fetch_live
@@ -28,6 +35,9 @@ python3 -m src.features.build_features
 python3 -m src.models.train
 python3 -m src.models.train --trials 100        # more Optuna trials
 python3 -m src.models.train --split-date 2026-03-01  # custom train/test split
+
+# Generate next-day predictions using today's live data (run fetch_live first)
+python3 -m src.models.predict
 
 # Open MLflow experiment dashboard (run from project root)
 mlflow ui --backend-store-uri sqlite:///mlflow.db
@@ -116,6 +126,7 @@ Feature groups:
 | `src/features/build_features.py` | Implemented | Feature engineering script |
 | `notebooks/03_training.ipynb` | Implemented | LightGBM + Optuna HPO + MLflow |
 | `src/models/train.py` | Implemented | Training script (mirrors notebook, CLI + importable) |
+| `src/models/predict.py` | Implemented | Live prediction script (patches last known features with today's data) |
 | `models/best_model.txt` | Implemented | Saved LightGBM booster (Optuna-tuned) |
 | `streamlit_app.py` | In progress | Streamlit demand forecast dashboard |
 | `src/api/` | Stub | FastAPI serving endpoint |

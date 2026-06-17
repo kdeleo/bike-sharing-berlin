@@ -2,6 +2,16 @@
 pandas>=2.1
 pyarrow>=14.0
 numpy>=1.26
+geopandas>=1.0
+
+# Geospatial
+shapely>=2.0
+
+# Weather API
+openmeteo-requests>=1.0
+requests>=2.31
+requests-cache>=1.0
+retry-requests>=2.0
 
 # ML
 lightgbm>=4.1

@@ -182,14 +182,20 @@ def main() -> None:
         snapshot.to_parquet(out_path, index=False)
         log.info("Saved snapshot → %s  (%d rows)", out_path.name, len(snapshot))
 
-    # ── Tomorrow's weather forecast ───────────────────────────────────────────
+    # ── Today + tomorrow weather forecast ────────────────────────────────────
     try:
-        hourly_df   = _fetch_hourly_forecast()
-        forecast_df = aggregate_to_daily(hourly_df, tomorrow)
+        hourly_df = _fetch_hourly_forecast()
+        today_df    = aggregate_to_daily(hourly_df, today)
+        tomorrow_df = aggregate_to_daily(hourly_df, tomorrow)
+        forecast_df = pd.concat([today_df, tomorrow_df], ignore_index=True)
+        log.info("Today    (%s): %.1f°C apparent, %.1f mm precip",
+                 today,
+                 today_df["apparent_temperature"].iloc[0],
+                 today_df["precipitation"].iloc[0])
         log.info("Tomorrow (%s): %.1f°C apparent, %.1f mm precip",
                  tomorrow,
-                 forecast_df["apparent_temperature"].iloc[0],
-                 forecast_df["precipitation"].iloc[0])
+                 tomorrow_df["apparent_temperature"].iloc[0],
+                 tomorrow_df["precipitation"].iloc[0])
         update_weather_cache(forecast_df)
     except Exception as exc:
         log.warning("Weather forecast fetch failed: %s", exc)

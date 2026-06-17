@@ -3,6 +3,7 @@ bike_data_berlin/
 data/processed/
 data/raw/
 data/features/
+data/predictions/
 data/stations.parquet
 
 # Model artifacts
