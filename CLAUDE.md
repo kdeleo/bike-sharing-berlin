@@ -55,6 +55,22 @@ jupyter lab
 pytest
 pytest tests/path/to/test_file.py::test_name  # single test
 pytest --cov=src                               # with coverage
+
+# Install Airflow into the venv (first time only)
+.venv/bin/pip install "apache-airflow==3.2.2"
+
+# Start Airflow — standalone runs scheduler + api-server + dag-processor in one process
+export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/dags
+export AIRFLOW__CORE__LOAD_EXAMPLES=False
+airflow standalone
+# Admin password is auto-generated to ~/airflow/simple_auth_manager_passwords.json.generated
+# UI at http://localhost:8080
+
+# Dry-run a DAG (no scheduling, executes tasks immediately)
+export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/dags
+airflow dags reserialize   # register DAGs in DB first
+airflow dags test daily_pipeline $(date +%Y-%m-%d)
+airflow dags test weekly_retrain $(date +%Y-%m-%d)
 ```
 
 ## Architecture
@@ -128,10 +144,11 @@ Feature groups:
 | `src/models/train.py` | Implemented | Training script (mirrors notebook, CLI + importable) |
 | `src/models/predict.py` | Implemented | Live prediction script (patches last known features with today's data) |
 | `models/best_model.txt` | Implemented | Saved LightGBM booster (Optuna-tuned) |
-| `streamlit_app.py` | In progress | Streamlit demand forecast dashboard |
+| `streamlit_app.py` | Implemented | Streamlit demand forecast dashboard |
+| `dags/daily_pipeline.py` | Implemented | Daily 07:00: fetch → ETL → features → predict |
+| `dags/weekly_retrain.py` | Implemented | Sunday 02:00: features → train |
 | `src/api/` | Stub | FastAPI serving endpoint |
 | `src/monitoring/` | Stub | Evidently drift monitoring |
-| Airflow DAGs | Not started | Scheduling daily pipeline runs |
 | Docker | Not started | Containerisation for deployment |
 
 ### Data

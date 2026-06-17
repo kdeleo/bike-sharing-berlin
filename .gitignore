@@ -6,6 +6,9 @@ data/features/
 data/predictions/
 data/stations.parquet
 
+# Airflow metadata (db, logs, plugins — regenerated on airflow db init)
+airflow/
+
 # Model artifacts
 models/*.pkl
 models/*.joblib

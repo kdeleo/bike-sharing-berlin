@@ -50,7 +50,7 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | Streamlit dashboard (`streamlit_app.py`) | Done |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
-| Airflow DAGs | Planned |
+| Airflow DAGs (`dags/`) | Done (daily pipeline + weekly retrain) |
 | Docker / cloud deployment | Planned |
 
 ## Data
@@ -162,6 +162,39 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```bash
 pytest
 pytest --cov=src   # with coverage report
+```
+
+**Set up and start Airflow:**
+
+```bash
+# Install Airflow into the venv (first time only)
+.venv/bin/pip install "apache-airflow==3.2.2"
+
+# Start Airflow (scheduler + api-server + dag-processor in one process)
+source .venv/bin/activate
+export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/dags
+export AIRFLOW__CORE__LOAD_EXAMPLES=False
+airflow standalone
+```
+
+The admin password is auto-generated on first run and saved to:
+```
+~/airflow/simple_auth_manager_passwords.json.generated
+```
+
+UI at http://localhost:8080. DAGs start paused — toggle them on in the UI.
+
+DAGs:
+- `daily_pipeline` — 07:00 Europe/Berlin: `fetch_live → ETL → build_features → predict`
+- `weekly_retrain` — Sunday 02:00 Europe/Berlin: `build_features → train`
+
+**Dry-run a DAG without scheduling:**
+
+```bash
+export AIRFLOW__CORE__DAGS_FOLDER=$(pwd)/dags
+airflow dags reserialize   # register DAGs in the DB first
+airflow dags test daily_pipeline $(date +%Y-%m-%d)
+airflow dags test weekly_retrain $(date +%Y-%m-%d)
 ```
 
 ## Feature engineering
