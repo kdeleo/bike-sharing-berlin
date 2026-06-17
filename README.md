@@ -47,7 +47,7 @@ Orchestrated with **Airflow**, packaged with **Docker**.
 | Feature engineering (`notebooks/02_feature_engineering.ipynb`, `src/features/`) | Done |
 | Model training (`notebooks/03_training.ipynb`, `src/models/train.py`) | Done (LightGBM + Optuna + MLflow, R² 0.768) |
 | Live prediction (`notebooks/05_predict.ipynb`, `src/models/predict.py`) | Done |
-| Streamlit dashboard (`streamlit_app.py`) | In progress |
+| Streamlit dashboard (`streamlit_app.py`) | Done |
 | API (`src/api/`) | Planned |
 | Monitoring (`src/monitoring/`) | Planned |
 | Airflow DAGs | Planned |
